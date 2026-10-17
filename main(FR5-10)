@@ -1,0 +1,330 @@
+#include <iostream>
+#include <conio.h>
+#include <stdlib.h>
+#include <windows.h>
+
+extern "C" {
+#include <FreeRTOS.h>
+#include <task.h>
+#include <timers.h>
+#include <semphr.h>
+#include <interface.h>
+#include <interrupts.h>
+}
+
+#include <my_interaction_functions/my_interaction_functions.h>
+
+#define mainREGION_1_SIZE   8201
+#define mainREGION_2_SIZE   29905
+#define mainREGION_3_SIZE   7607
+
+void vAssertCalled(unsigned long ulLine, const char* const pcFileName)
+{
+    static BaseType_t xPrinted = pdFALSE;
+    volatile uint32_t ulSetToNonZeroInDebuggerToContinue = 0;
+    (void)ulLine;
+    (void)pcFileName;
+    printf("ASSERT! Line %ld, file %s, GetLastError() %ld\r\n", ulLine, pcFileName, GetLastError());
+
+    taskENTER_CRITICAL();
+    {
+        __debugbreak();
+        while (ulSetToNonZeroInDebuggerToContinue == 0)
+        {
+            __asm { NOP };
+            __asm { NOP };
+        }
+    }
+    taskEXIT_CRITICAL();
+}
+
+
+static void initialiseHeap(void)
+{
+    static uint8_t ucHeap[configTOTAL_HEAP_SIZE];
+    volatile uint32_t ulAdditionalOffset = 19;
+    const HeapRegion_t xHeapRegions[] =
+    {
+        { ucHeap + 1, mainREGION_1_SIZE },
+        { ucHeap + 15 + mainREGION_1_SIZE, mainREGION_2_SIZE },
+        { ucHeap + 19 + mainREGION_1_SIZE + mainREGION_2_SIZE, mainREGION_3_SIZE },
+        { NULL, 0 }
+    };
+
+    configASSERT((ulAdditionalOffset + mainREGION_1_SIZE + mainREGION_2_SIZE + mainREGION_3_SIZE) < configTOTAL_HEAP_SIZE);
+    (void)ulAdditionalOffset;
+    vPortDefineHeapRegions(xHeapRegions);
+}
+
+
+////hooks
+void myTickHook(void) {
+    //Sleep(0);
+}
+
+void myIdleHook(void) {
+    //Sleep(0);
+}
+
+// menu
+void vTaskMenu(void* pvParameters)
+{
+    int tecla = 0;
+    bool luzCimaEstado = false;
+    bool luzBaixoEstado = false;
+
+    printf("        MENU          \n");
+    printf("   'a' / 'd' : Mover Eixo X (Esquerda / Direita)\n");
+    printf("   'w' / 's' : Mover Eixo Z (Cima / Baixo)\n");
+    printf("   'u' / 'i' : Mover Eixo Y (Dentro / Fora)\n");
+    printf("   'x'       : Parar todos os motores\n");
+    printf("   '1'-'3'   : Goto X (1 a 3)\n");
+    printf("   '4'-'6'   : Goto Z (1 a 3)\n");
+    printf("   'q','e','r': Goto Y (1 a 3)\n");
+    printf("   'c'       : Calibrar o Kit \n");
+    printf("   'o' / 'p' : Alternar Luz superior / Luz inferior \n");
+    printf("   'b'       : Ler estado dos botoes esquerdos \n"); //para debug, so ver se funcionam
+    printf("   'h'       : Guardar (1) ou Retirar (2) caixa\n");
+
+
+    while (1) {
+        if (_kbhit()) { // faz uma verificação simples no teclado, ve se ha alguma tecla à espera de ser lida, sem parar o programa, true se houver e lê com getch, para nao bloquear o prgrama
+            tecla = _getch();
+
+            if (tecla == 'd') {
+                printf("vai mover para a direita\n");
+                moveXRight();
+            }
+
+            else if (tecla == 'a') {
+                printf("vai mover para esquerda\n");
+                moveXLeft();
+            }
+
+            else if (tecla == 'x') {
+                stopX();
+                stopY();
+                stopZ();
+                printf("vai parar\n");
+            }
+
+            else if (tecla == 'w') {
+                printf("vai mover para cima\n");
+                moveZUp();
+            }
+
+            else if (tecla == 's') {
+                printf("vai mover para baixo\n");
+                moveZDown();
+            }
+
+            else if (tecla == 'u') {
+                printf("vai para dentro\n");
+                moveYInside();
+            }
+
+            else if (tecla == 'i') {
+                printf("vai para fora\n");
+                moveYOutside();
+            }
+
+            // calibracao 
+            else if (tecla == 'c' || tecla == 'C') {
+                calibrarKit();
+            }
+
+            // Leitura dos Botões 
+            else if (tecla == 'b' || tecla == 'B') {
+                printf("Botao Superior: ");
+                if (botaoCimaPressionado()) {
+                    printf("premido\n");
+                }
+                else {
+                    printf("solto\n");
+                }
+
+                printf("Botao Inferior: ");
+                if (botaoBaixoPressionado()) {
+                    printf("premido\n");
+                }
+                else {
+                    printf("solto\n");
+                }
+            }
+
+            // Teste de Luzes 
+            else if (tecla == 'o' || tecla == 'O') {
+                luzCimaEstado = !luzCimaEstado; //mudar de true para false ou contrario
+                AtivarLuzCima(luzCimaEstado);
+
+                if (luzCimaEstado) {
+                    printf("Luz de cima ligada\n");
+                }
+                else {
+                    printf("Luz de cima desligada\n");
+                }
+            }
+            else if (tecla == 'p' || tecla == 'P') {
+                luzBaixoEstado = !luzBaixoEstado;
+                AtivarLuzBaixo(luzBaixoEstado);
+
+                if (luzBaixoEstado) {
+                    printf("Luz de baixo ligada\n");
+                }
+                else {
+                    printf("Luz de baixo desligada\n");
+                }
+            }
+
+            // Goto's
+            else if (tecla == '1') {
+                if (!estaCalibrado()) {
+                    printf("O kit ainda nao foi calibrado! Prime 'c' para calibrar primeiro.\n");
+                }
+                else {
+                    printf("vai para X1\n");
+                    gotoX(1, 0);
+                }
+            }
+
+            else if (tecla == '2') {
+                if (!estaCalibrado()) {
+                    printf("O kit ainda nao foi calibrado! Prime 'c' para calibrar primeiro.\n");
+                }
+                else {
+                    printf("vai para X2\n");
+                    gotoX(2, 0);
+                }
+            }
+
+            else if (tecla == '3') {
+                if (!estaCalibrado()) {
+                    printf("O kit ainda nao foi calibrado! Prime 'c' para calibrar primeiro.\n");
+                }
+                else {
+                    printf("vai para X3\n");
+                    gotoX(3, 0);
+                }
+            }
+
+            else if (tecla == '4') {
+                if (!estaCalibrado()) {
+                    printf("O kit ainda nao foi calibrado! Prime 'c' para calibrar primeiro.\n");
+                }
+                else {
+                    printf("vai para Z1\n");
+                    gotoZ(1,0);
+                }
+            }
+
+            else if (tecla == '5') {
+                if (!estaCalibrado()) {
+                    printf("O kit ainda nao foi calibrado! Prime 'c' para calibrar primeiro.\n");
+                }
+                else {
+                    printf("vai para Z2\n");
+                    gotoZ(2,0);
+                }
+            }
+
+            else if (tecla == '6') {
+                if (!estaCalibrado()) {
+                    printf("O kit ainda nao foi calibrado! Prime 'c' para calibrar primeiro.\n");
+                }
+                else {
+                    printf("vai para Z3\n");
+                    gotoZ(3,0);
+                }
+            }
+
+            else if (tecla == 'q') {
+                if (!estaCalibrado()) {
+                    printf("O kit ainda nao foi calibrado! Prime 'c' para calibrar primeiro.\n");
+                }
+                else {
+                    printf("vai para Y1\n");
+                    gotoY(1,0);
+                }
+            }
+
+            else if (tecla == 'e') {
+                if (!estaCalibrado()) {
+                    printf("O kit ainda nao foi calibrado! Prime 'c' para calibrar primeiro.\n");
+                }
+                else {
+                    printf("vai para Y2\n");
+                    gotoY(2,0);
+                }
+            }
+
+            else if (tecla == 'r') {
+                if (!estaCalibrado()) {
+                    printf("O kit ainda nao foi calibrado! Prime 'c' para calibrar primeiro.\n");
+                }
+                else {
+                    printf("vai para Y3\n");
+                    gotoY(3,0);
+                }
+            }
+
+            // opcao h
+            else if (tecla == 'h' || tecla == 'H') {
+                if (!estaCalibrado()) {
+                    printf("O kit precisa de ser calibrado primeiro, prime 'c'\n");
+                }
+                else {
+                    int opcao = 0, x = 0, z = 0;
+                    printf("\nGuardar caixa (1) ou tirar (2)? ");
+                    std::cin >> opcao;
+
+                    if (opcao == 1 || opcao == 2) {
+                        printf("Introduza a coluna X (1 a 3): ");
+                        std::cin >> x;
+                        printf("Introduza a linha Z (1 a 3): ");
+                        std::cin >> z;
+
+                        if (x >= 1 && x <= 3 && z >= 1 && z <= 3) {
+                            if (opcao == 1) {
+                                if(!putPartInCell(x, z)) removerTodasBoxes();
+                            }
+                            else {
+                                if (!takePartFromCell(x, z)) removerTodasBoxes();
+                            }
+                        }
+                        else {
+                            printf("Posicao invalida\n");
+                        }
+                    }
+                    else {
+                        printf("Opcao invalida\n");
+                    }
+                }
+            }
+        }
+        vTaskDelay(50); // liberta a CPU durante 50ms para permitir que outras tarefas corram
+    }
+}
+
+// inicializar portos
+void myDaemonTaskStartupHook(void) {
+    printf("\nA inicializar portos de hardware...");
+    createDigitalInput(0);
+    createDigitalInput(1); 
+    createDigitalOutput(2);
+    writeDigitalU8(2, 0);
+
+    // Cria a tarefa do menu 
+    xTaskCreate(vTaskMenu, "Menu", 512, NULL, 1, NULL);
+}
+
+
+int main()
+{
+    initialiseHeap();
+    vApplicationDaemonTaskStartupHook = &myDaemonTaskStartupHook;
+    vApplicationTickHook = &myTickHook;
+    vApplicationIdleHook = &myIdleHook;
+
+    vTaskStartScheduler();
+    return 0;
+}
