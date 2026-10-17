@@ -1,0 +1,477 @@
+#include "my_interaction_functions.h"
+#include <windows.h> //for Sleep function
+#include <FreeRTOS.h>
+#include <timers.h>
+#include <time.h>   // [Rodrigo] para a funcao time() (data real)
+
+volatile int contador_impulsos = 0;
+volatile ULONGLONG ultimo_tempo_clique = 0;
+
+/*struct CelulaArmazem {
+    int id;
+    int familia;
+    bool ocupado;
+    ULONGLONG tempo_storage;
+};*/
+
+// Matriz de células (índices 1 a 3)
+ CelulaArmazem armazem[4][4] = { { {0} } };
+
+
+int getBitValue(uInt8 value, uInt8 bit_n)
+// given a byte value, returns the value of its bit n
+{
+    return(value & (1 << bit_n));
+}
+
+
+void setBitValue(uInt8* variable, int n_bit, int new_value_bit)// given a byte value, set the n bit to value
+{
+    uInt8 mask_on = (uInt8)(1 << n_bit);
+    uInt8 mask_off = ~mask_on;
+    if (new_value_bit) *variable |= mask_on;
+    else *variable &= mask_off;
+}
+
+
+// X axis related functions
+
+void moveXLeft()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 6, 1); // set bit 6 to high level
+    setBitValue(&p, 7, 0); // set bit 7 to low level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void moveXRight()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 6, 0); // set bit 6 to low level
+    setBitValue(&p, 7, 1); // set bit 7 to high level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void stopX()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 6, 0); // set bit 6 to low level
+    setBitValue(&p, 7, 0); // set bit 7 to low level
+    writeDigitalU8(2, p); // update port 2
+}
+
+int getXPos()
+{
+    uInt8 p = readDigitalU8(0);
+    if (!getBitValue(p, 2))
+        return 1;
+    if (!getBitValue(p, 1))
+        return 2;
+    if (!getBitValue(p, 0))
+        return 3;
+    return(-1);
+}
+
+void gotoX(int x) {
+    int x_pos = getXPos();
+
+    if (x < 1 || x > 3)
+        return;
+
+    if (x == x_pos)
+        return;
+
+    // se a posição for -1, move para a esquerda até encontrar um sensor
+    if (x_pos == -1) {
+        moveXLeft();
+        while (getXPos() == -1) //  até atingir o primeiro sensor
+            vTaskDelay(10);
+
+        stopX();
+        x_pos = getXPos(); // atualiza a posição 
+    }
+
+    if (x_pos < x) {
+        moveXRight();
+
+        while (getXPos() != x) {
+            vTaskDelay(10);
+
+        }
+
+        stopX();
+    }
+    else if (x_pos > x) {
+        moveXLeft();
+
+        while (getXPos() != x) {
+            vTaskDelay(10);
+
+        }
+
+        stopX();
+    }
+}
+
+// Y axis related functions
+void moveYInside()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 4, 0); // set bit 4 to low level
+    setBitValue(&p, 5, 1); // set bit 5 to high level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void moveYOutside()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 4, 1); // set bit 4 to low level
+    setBitValue(&p, 5, 0); // set bit 5 to high level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void stopY() {
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 4, 0); // set bit 4 to low level
+    setBitValue(&p, 5, 0); // set bit 5 to low level
+    writeDigitalU8(2, p); // update port 2
+}
+
+int getYPos()
+{
+    uInt8 p = readDigitalU8(0);
+    if (!getBitValue(p, 5))
+        return 1;
+    if (!getBitValue(p, 4))
+        return 2;
+    if (!getBitValue(p, 3))
+        return 3;
+    return(-1);
+}
+
+void gotoY(int y) {
+    int y_pos = getYPos();
+
+    if (y < 1 || y > 3)
+        return;
+
+    if (y == y_pos)
+        return;
+
+    // se estiver entre sensores, move para fora até encontrar uma posição válida
+    if (y_pos == -1) {
+        moveYOutside();
+        while (getYPos() == -1) //  até encontrar um sensor
+            vTaskDelay(10);
+
+        stopY();
+        y_pos = getYPos(); // atualiza a posição 
+    }
+
+    if (y_pos < y) {
+        moveYInside();
+
+        while (getYPos() != y) {
+            vTaskDelay(10);
+
+        }
+
+        stopY();
+    }
+    else if (y_pos > y) {
+        moveYOutside();
+
+        while (getYPos() != y) {
+            vTaskDelay(10);
+
+        }
+
+        stopY();
+    }
+}
+
+// Z axis related functions
+
+void moveZUp()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 2, 0); // set bit 4 to low level
+    setBitValue(&p, 3, 1); // set bit 5 to high level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void moveZDown()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 2, 1); // set bit 4 to low level
+    setBitValue(&p, 3, 0); // set bit 5 to high level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void stopZ() {
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 2, 0); // set bit 4 to low level
+    setBitValue(&p, 3, 0); // set bit 5 to low level
+    writeDigitalU8(2, p); // update port 2
+}
+
+int getZPos()
+{
+    uInt8 p0 = readDigitalU8(0);
+    uInt8 p1 = readDigitalU8(1);
+    if (!getBitValue(p1, 3))
+        return 1;
+    if (!getBitValue(p1, 1))
+        return 2;
+    if (!getBitValue(p0, 7))
+        return 3;
+
+    return(-1);
+}
+
+void gotoZ(int z) {
+    int z_pos = getZPos();
+
+    if (z < 1 || z > 3)
+        return;
+
+    if (z == z_pos)
+        return;
+
+    // se a posição for -1, desce até encontrar um sensor
+    if (z_pos == -1) {
+        moveZDown();
+        while (getZPos() == -1) //  até atingir o primeiro sensor
+            vTaskDelay(10);
+
+
+        stopZ();
+        z_pos = getZPos(); // atualiza a posição 
+    }
+
+    if (z_pos < z) {
+        moveZUp();
+
+        while (getZPos() != z) {
+            vTaskDelay(10);
+
+        }
+
+        stopZ();
+    }
+    else if (z_pos > z) {
+        moveZDown();
+
+        while (getZPos() != z) {
+            vTaskDelay(10);
+
+        }
+
+        stopZ();
+    }
+}
+
+int getZPosicaoCell()
+{
+    uInt8 p0 = readDigitalU8(0);
+    uInt8 p1 = readDigitalU8(1);
+    if (!getBitValue(p1, 2))
+        return 1;
+    if (!getBitValue(p1, 0))
+        return 2;
+    if (!getBitValue(p0, 6))
+        return 3;
+
+    return(-1);
+}
+
+void putPartInCell(int x, int z)
+{
+    if (!estaCalibrado()) {
+        printf("Kit nao calibrado.\n");
+        return;
+    }
+
+    gotoX(x);
+    gotoZ(z);
+
+    //ir para baixo para a caixa ficar lá
+    moveZUp();
+    while (getZPosicaoCell() == -1) //  até atingir o primeiro sensor
+        vTaskDelay(10);
+
+    stopZ();
+
+    gotoY(3);      // Entra lá
+
+    gotoZ(z);
+
+    gotoY(2);      // Sai de lá
+}
+
+void takePartFromCell(int x, int z)
+{
+    if (!estaCalibrado()) {
+        printf("Kit nao calibrado.\n");
+        return;
+    }
+
+    gotoX(x);
+    gotoZ(z);
+
+    gotoY(3);      // Entra na célula
+
+    //ir para baixo para a caixa ficar lá
+    moveZUp();
+    while (getZPosicaoCell() == -1) //  até atingir o primeiro sensor
+        vTaskDelay(10);
+
+
+    stopZ();
+
+    gotoY(2);      // Sai da célula
+
+    gotoZ(z);
+
+}
+
+// porto 1, Bit 5 - superior
+bool botaoCimaPressionado() {
+    uInt8 p1 = readDigitalU8(1);
+
+    return getBitValue(p1, 5) != 0; // Retorna true se o botao estiver premido
+}
+
+// porto 1, Bit 6 - inferior
+bool botaoBaixoPressionado() {
+    uInt8 p1 = readDigitalU8(1);
+
+    return getBitValue(p1, 6) != 0;
+}
+
+// luz Superior Porto 2, Bit 0
+void AtivarLuzCima(bool state) {
+
+    taskENTER_CRITICAL();
+
+    uInt8 p2 = readDigitalU8(2);
+    setBitValue(&p2, 0, state ? 1 : 0);  //se state for true mete-se a 1 para ligar a luz, senao 0
+    writeDigitalU8(2, p2);
+
+    taskEXIT_CRITICAL(); //porto 2 e preciso
+}
+
+// luz Inferior Porto 2, Bit 1
+void AtivarLuzBaixo(bool state) {
+    taskENTER_CRITICAL();
+
+    uInt8 p2 = readDigitalU8(2);
+    setBitValue(&p2, 1, state ? 1 : 0);
+    writeDigitalU8(2, p2);
+
+    taskEXIT_CRITICAL();
+}
+
+
+static bool calibrado = false;
+
+bool estaCalibrado() {
+    return calibrado;
+}
+
+void calibrarKit() {
+
+    printf("\nA iniciar calibracao \n");
+
+    gotoY(2);
+
+    gotoZ(1);
+
+    gotoX(1);
+
+    calibrado = true;
+    printf("Calibrado com sucesso na posicao (X=1, Y=2, Z=1)\n");
+}
+
+
+void switch1_rising_isr(ULONGLONG lastTime) {
+
+    ULONGLONG tempo_atual = GetTickCount64();
+    ultimo_tempo_clique = tempo_atual;
+    contador_impulsos++;
+
+    printf("\nTotal de cliques: %d", contador_impulsos);
+}
+
+void vTaskGereBotoes(void* pvParameters) {
+
+    while (1) {
+        // Se houve impulsos e ja passaram pelo menos 2 segundos desde o ultimo clique
+        if (contador_impulsos > 0) {
+            ULONGLONG agora = GetTickCount64();
+
+            if ((agora - ultimo_tempo_clique) > 2000) {
+                int id_peca = contador_impulsos;
+                contador_impulsos = 0; // Reset para o próximo ciclo, ja foi guardado no id_peca
+
+                // garantir limite de ID entre 1 e 9
+                if (id_peca > 9) id_peca = 9;
+                printf("\nContagem terminada. ID da peca: %d\n", id_peca);
+
+                // garantir que esta calibrado 
+                if (!estaCalibrado()) {
+                    printf("Kit nao calibrado. Impossivel guardar peca. Prime 'c' para calibrar primeiro.\n");
+                }
+                else {
+                    // Familia 1 (1,4,7), familia 2 (2,5,8), familia 3 (3,6,9)
+                    int familia = ((id_peca - 1) % 3) + 1;
+
+                    // procurar a primeira celula vazia no armazem
+                    int target_x = -1;
+                    int target_z = -1;
+                    bool celula_encontrada = false;
+
+                    for (int x = 1; x <= 3; x++) {
+                        for (int z = 1; z <= 3; z++) {
+                            if (!armazem[x][z].ocupado) {
+                                target_x = x;
+                                target_z = z;
+                                celula_encontrada = true;
+                                break;
+                            }
+                        }
+                        if (celula_encontrada) break;
+                    }
+
+                    if (!celula_encontrada) {
+                        printf("Armazem cheio.\n");
+                    }
+                    else {
+                        printf("Celula vazia encontrada: X = %d, Z = %d\n", target_x, target_z);
+                        printf("A arrumar a peca\n");
+
+
+                        putPartInCell(target_x, target_z);
+
+                        // registar o tempo de conclusao
+                        ULONGLONG tempo_conclusao = GetTickCount64();
+
+                        // atualizar o inventário
+                        armazem[target_x][target_z].id = id_peca;
+                        armazem[target_x][target_z].familia = familia;
+                        armazem[target_x][target_z].ocupado = true;
+                        armazem[target_x][target_z].tempo_storage = tempo_conclusao;
+                        armazem[target_x][target_z].data_storage = time(NULL);   // [Rodrigo] data real para FR11-FR13
+
+                        printf("ID da peca: %d\n", id_peca);
+                        printf("Familia: %d\n", familia);
+                        printf("Celula selecionada: (X=%d, Z=%d)\n", target_x, target_z);
+                        printf("Tempo de conclusao: %llu ms\n", tempo_conclusao);
+                    }
+                }
+            }
+        }
+
+        vTaskDelay(100); // Dá tempo de CPU a outras tarefas
+    }
+}
