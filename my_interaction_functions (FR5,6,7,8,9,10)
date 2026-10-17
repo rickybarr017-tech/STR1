@@ -1,0 +1,494 @@
+#include <my_interaction_functions/my_interaction_functions.h>
+#include <windows.h> //for Sleep function
+#include <FreeRTOS.h>
+#include <timers.h>
+
+
+int getBitValue(uInt8 value, uInt8 bit_n)
+// given a byte value, returns the value of its bit n
+{
+    return(value & (1 << bit_n));
+}
+
+
+void setBitValue(uInt8* variable, int n_bit, int new_value_bit)// given a byte value, set the n bit to value
+{
+    uInt8 mask_on = (uInt8)(1 << n_bit);
+    uInt8 mask_off = ~mask_on;
+    if (new_value_bit) *variable |= mask_on;
+    else *variable &= mask_off;
+}
+
+
+// X axis related functions
+
+void moveXLeft()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 6, 1); // set bit 6 to high level
+    setBitValue(&p, 7, 0); // set bit 7 to low level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void moveXRight()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 6, 0); // set bit 6 to low level
+    setBitValue(&p, 7, 1); // set bit 7 to high level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void stopX()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 6, 0); // set bit 6 to low level
+    setBitValue(&p, 7, 0); // set bit 7 to low level
+    writeDigitalU8(2, p); // update port 2
+}
+
+int getXPos()
+{
+    uInt8 p = readDigitalU8(0);
+    if (!getBitValue(p, 2))
+        return 1;
+    if (!getBitValue(p, 1))
+        return 2;
+    if (!getBitValue(p, 0))
+        return 3;
+    return(-1);
+}
+
+//mudar gotos para bools para caso parem sabermos 
+bool gotoX(int x, int piscar = 0) {
+    int x_pos = getXPos();
+
+    if (x < 1 || x > 3) return false;
+    if (x == x_pos) return true;
+
+    // se a posição for -1, move para a esquerda até encontrar um sensor
+    if (x_pos == -1) {
+        //moveXLeft();
+        while (getXPos() == -1) {//  até atingir o primeiro sensor
+            moveXLeft(); //meter o move dentro dos whiles, porque saimos da paragem, e voltamos a estes whiles 
+            if (piscar == 1) piscaCima();
+            if (piscar == 2) piscaBaixo();
+            if (ParagemEmergencia()) return false;
+            vTaskDelay(10);
+        }
+        stopX();
+        x_pos = getXPos(); // atualiza a posição 
+    }
+    if (x_pos < x) {
+        //moveXRight();
+        while (getXPos() != x) {
+            moveXRight();
+            if (piscar == 1) piscaCima();
+            if (piscar == 2) piscaBaixo();
+            if (ParagemEmergencia()) return false;;
+            vTaskDelay(10);
+        }
+        stopX();
+    }
+    else if (x_pos > x) {
+        //moveXLeft();
+        while (getXPos() != x) {
+            moveXLeft();
+            if (piscar == 1) piscaCima();
+            if (piscar == 2) piscaBaixo();
+            if (ParagemEmergencia()) return false;
+            vTaskDelay(10);
+        }
+        stopX();
+    }
+    return true;
+}
+
+// Y axis related functions
+void moveYInside()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 4, 0); // set bit 4 to low level
+    setBitValue(&p, 5, 1); // set bit 5 to high level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void moveYOutside()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 4, 1); // set bit 4 to low level
+    setBitValue(&p, 5, 0); // set bit 5 to high level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void stopY() {
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 4, 0); // set bit 4 to low level
+    setBitValue(&p, 5, 0); // set bit 5 to low level
+    writeDigitalU8(2, p); // update port 2
+}
+
+int getYPos()
+{
+    uInt8 p = readDigitalU8(0);
+    if (!getBitValue(p, 5))
+        return 1;
+    if (!getBitValue(p, 4))
+        return 2;
+    if (!getBitValue(p, 3))
+        return 3;
+    return(-1);
+}
+
+bool gotoY(int y, int piscar = 0) {
+    int y_pos = getYPos();
+    if (y < 1 || y > 3)
+        return false;
+    if (y == y_pos)
+        return true;
+    // se estiver entre sensores, move para fora até encontrar uma posição válida
+    if (y_pos == -1) {
+        //moveYOutside();
+        while (getYPos() == -1) { //  até encontrar um sensor
+            moveYOutside();
+            if (piscar == 1) piscaCima();
+            if (piscar == 2) piscaBaixo();
+            if (ParagemEmergencia()) return false;
+            vTaskDelay(10);
+        }
+        stopY();
+        y_pos = getYPos(); // atualiza a posição 
+    }
+    if (y_pos < y) {
+        //moveYInside();
+        while (getYPos() != y) {
+            moveYInside();
+            if (piscar == 1) piscaCima();
+            if (piscar == 2) piscaBaixo();
+            if (ParagemEmergencia()) return false;
+            vTaskDelay(10);
+        }
+        stopY();
+    }
+    else if (y_pos > y) {
+        //moveYOutside();
+        while (getYPos() != y) {
+            moveYOutside();
+            if (piscar == 1) piscaCima();
+            if (piscar == 2) piscaBaixo();
+            if (ParagemEmergencia()) return false;
+            vTaskDelay(10);
+        }
+        stopY();
+    }
+    return true;
+}
+
+// Z axis related functions
+
+void moveZUp()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 2, 0); // set bit 4 to low level
+    setBitValue(&p, 3, 1); // set bit 5 to high level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void moveZDown()
+{
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 2, 1); // set bit 4 to low level
+    setBitValue(&p, 3, 0); // set bit 5 to high level
+    writeDigitalU8(2, p); // update port 2
+}
+
+void stopZ() {
+    uInt8 p = readDigitalU8(2); // read port 2
+    setBitValue(&p, 2, 0); // set bit 4 to low level
+    setBitValue(&p, 3, 0); // set bit 5 to low level
+    writeDigitalU8(2, p); // update port 2
+}
+
+int getZPos()
+{
+    uInt8 p0 = readDigitalU8(0);
+    uInt8 p1 = readDigitalU8(1);
+    if (!getBitValue(p1, 3))
+        return 1;
+    if (!getBitValue(p1, 1))
+        return 2;
+    if (!getBitValue(p0, 7))
+        return 3;
+
+    return(-1);
+}
+
+bool gotoZ(int z, int pisca = 0) {
+    int z_pos = getZPos();
+    if (z < 1 || z > 3)
+        return false;
+    if (z == z_pos)
+        return true;
+    // se a posição for -1, desce até encontrar um sensor
+    if (z_pos == -1) {
+        //moveZDown();
+        while (getZPos() == -1) {//  até atingir o primeiro sensor
+            moveZDown();
+            if (pisca == 1) piscaCima();
+            if (pisca == 2) piscaBaixo();
+            if (ParagemEmergencia()) return false;
+            vTaskDelay(10);
+        }
+        stopZ();
+        z_pos = getZPos(); // atualiza a posição 
+    }
+
+    if (z_pos < z) {
+        //moveZUp();
+        while (getZPos() != z) {
+            moveZUp();
+            if (pisca == 1) piscaCima();
+            if (pisca == 2) piscaBaixo();
+            if (ParagemEmergencia()) return false;
+            vTaskDelay(10);
+        }
+        stopZ();
+    }
+    else if (z_pos > z) {
+        //moveZDown();
+        while (getZPos() != z) {
+            moveZDown();
+            if (pisca == 1) piscaCima();
+            if (pisca == 2) piscaBaixo();
+            if (ParagemEmergencia()) return false;
+            vTaskDelay(10);
+        }
+        stopZ();
+    }
+    return true;
+}
+
+int getZPosicaoCell()
+{
+    uInt8 p0 = readDigitalU8(0);
+    uInt8 p1 = readDigitalU8(1);
+    if (!getBitValue(p1, 2))
+        return 1;
+    if (!getBitValue(p1, 0))
+        return 2;
+    if (!getBitValue(p0, 6))
+        return 3;
+
+    return(-1);
+}
+
+//FR8 piscarLuz no while e desligar a lluz nos returns
+bool putPartInCell(int x, int z)
+{
+    if (!estaCalibrado()) {
+        printf("Kit nao calibrado.\n");
+        return true;
+    }
+   //FR8 meter upper light a flashar
+
+    if (!gotoX(x, 1)) { AtivarLuzCima(false); return false; } //desligar
+    if (!gotoZ(z, 1)) { AtivarLuzCima(false); return false; }
+
+    //ir para baixo para a caixa ficar lá
+    //moveZUp();
+    while (getZPosicaoCell() == -1) {//  até atingir o primeiro sensor
+        moveZUp();
+        piscaCima();
+        if (ParagemEmergencia()) { AtivarLuzCima(false);  return false; }
+        vTaskDelay(10);
+    }
+    stopZ();
+    //mal recebemos o 1 false paramos tava a ficar com 3 prints do PARAGEM EMERGENCIA
+    if (!gotoY(3,1)) { AtivarLuzCima(false); return false; }    // Entra lá
+    if (!gotoZ(z,1)) { AtivarLuzCima(false); return false; }
+    if (!gotoY(2,1)) { AtivarLuzCima(false); return false; }     // Sai de lá
+
+    AtivarLuzCima(false);
+    return true;
+}
+
+bool takePartFromCell(int x, int z)
+{
+    if (!estaCalibrado()) {
+        printf("Kit nao calibrado.\n");
+        return true;
+    }
+    //FR9 
+    if (!gotoX(x, 2)) return false;
+    if (!gotoZ(z, 2)) return false;
+    if(!gotoY(3,1)) return false;      // Entra na célula
+
+    //ir para baixo para a caixa ficar lá
+    //moveZUp();
+    while (getZPosicaoCell() == -1) {//  até atingir o primeiro sensor
+        piscaBaixo();
+        moveZUp();
+        if (ParagemEmergencia()) return false;
+        vTaskDelay(10);
+    }
+    stopZ();
+    if (!gotoY(2,1)) return false;      // Sai da célula
+    if(!gotoZ(z,2)) return false;
+
+    AtivarLuzBaixo(false);
+    return true;
+}
+
+// porto 1, Bit 5 - superior
+bool botaoCimaPressionado() {
+    uInt8 p1 = readDigitalU8(1);
+
+    return getBitValue(p1, 5) != 0; // Retorna true se o botao estiver premido
+}
+
+// porto 1, Bit 6 - inferior
+bool botaoBaixoPressionado() {
+    uInt8 p1 = readDigitalU8(1);
+
+    return getBitValue(p1, 6) != 0;
+}
+
+// luz Superior Porto 2, Bit 0
+void AtivarLuzCima(bool state) {
+
+    taskENTER_CRITICAL();
+
+    uInt8 p2 = readDigitalU8(2);
+    setBitValue(&p2, 0, state ? 1 : 0);  //se state for true mete-se a 1 para ligar a luz, senao 0
+    writeDigitalU8(2, p2);
+
+    taskEXIT_CRITICAL(); //porto 2 e preciso
+}
+
+// luz Inferior Porto 2, Bit 1
+void AtivarLuzBaixo(bool state) {
+    taskENTER_CRITICAL();
+
+    uInt8 p2 = readDigitalU8(2);
+    setBitValue(&p2, 1, state ? 1 : 0);
+    writeDigitalU8(2, p2);
+
+    taskEXIT_CRITICAL();
+}
+
+
+static bool calibrado = false;
+
+bool estaCalibrado() {
+    return calibrado;
+}
+
+void calibrarKit() {
+
+    printf("\nA iniciar calibracao \n");
+
+    gotoY(2,0);
+
+    gotoZ(1,0);
+
+    gotoX(1, 0);
+
+    calibrado = true;
+    printf("Calibrado com sucesso na posicao (X=1, Y=2, Z=1)\n");
+}
+
+//agora temos de chamar esta funcao tipo em todo o lado para ver se os botoes nao estao a ser carregados
+//ele nao esta a parar que o butao e pressionado e é logo largado 
+bool ParagemEmergencia() { //FR5 6 7
+    if (botaoBaixoPressionado() && botaoCimaPressionado()) {
+        stopX(); 
+        stopY();
+        stopZ();
+        printf("\nPARAGEM DE EMERGENCIA\n");
+        printf("\nPrima o botao superior para retomar\n");
+        printf("Primma o butao inferior para efetuar o reset do sistema\n");
+        vTaskDelay(200);//precisa para dar tempo para largar os butoes 
+        //fica preso sem devolver nada ate decidirmos FR6
+        while (1) {
+            piscarDuasLuzesFast();
+            if (botaoCimaPressionado() && !botaoBaixoPressionado()) {
+                printf("A retomar operacao\n");
+                vTaskDelay(200);//tempo para largar butoes
+                return false;
+            }
+            //FR7
+            else if (!botaoCimaPressionado() && botaoBaixoPressionado()) {
+                printf("A efetuar o reset do sistema");
+                vTaskDelay(200);
+                return true; //parar
+            }
+            vTaskDelay(10);
+        }
+    }
+    return false;
+}
+
+//FR7
+void removerTodasBoxes () {
+    taskENTER_CRITICAL();
+    uInt8 p1 = readDigitalU8(1);
+    setBitValue(&p1, 4, 0);
+    writeDigitalU8(1, p1);
+    
+    //gotoY(1);
+    calibrarKit();
+    printf("\nRESET CONCLUIDO\n");
+    taskEXIT_CRITICAL();
+}
+
+//FR8 func para piscar luz
+void piscaCima() {
+    static int contadorCiclos = 0; //static para nao ficar a 0 cada vez que chama outra vez no while 
+    static bool estadoLuz = false;
+    contadorCiclos++;
+    if (contadorCiclos >= 10) { //taskDelay esta a 10 10x10 = 100ms 0.1s (maybe aumentar) meter assim para nao dar overflow com o %10 == 0
+        estadoLuz = !estadoLuz;
+        AtivarLuzCima(estadoLuz);
+        contadorCiclos = 0;
+    }
+}
+
+void piscaBaixo() {
+    static int contadorCiclos = 0; //static para nao ficar a 0 cada vez que chama outra vez no while 
+    static bool estadoLuz = false;
+    contadorCiclos++;
+    if (contadorCiclos >= 10) { //taskDelay esta a 10 10x10 = 100ms 0.1s (maybe aumentar) meter assim para nao dar overflow com o %10 == 0
+        estadoLuz = !estadoLuz;
+        AtivarLuzBaixo(estadoLuz);
+        contadorCiclos = 0;
+    }
+}
+
+void piscarDuasLuzesFast() {
+    static int contadorCiclos = 0; //static para nao ficar a 0 cada vez que chama outra vez no while 
+    static bool estadoLuz = false;
+    contadorCiclos++;
+    if (contadorCiclos >= 5) { //METER MAIS BAIXO QUE OS OUTROS PISCAS!!!!!!! TEM DE SER MAIS RAPIDO
+        estadoLuz = !estadoLuz;
+        AtivarLuzCima(estadoLuz);
+        AtivarLuzBaixo(!estadoLuz);
+        contadorCiclos = 0;
+    }
+}
+
+/*
+* //FR5
+if (botaoCimaPressionado && botaoBaixoPressionado){
+	paragemEmergencia();
+	bool paradoEmergencia = true;
+}
+if (paradoEmergencia) {
+    if (butaoCimaPressionado && !butaoBaixoPressionado) {
+        retomarFuincinamento();
+	    paradoEmergencia = false;
+    }
+	else if (!butaoCimaPressionado && butaoBaixoPressionado) {
+		calibrarKit();
+		paradoEmergencia = false;
+        if ()//1.4 esta a 1 se tem coisinha 
+}
+*/
