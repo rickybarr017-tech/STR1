@@ -12,8 +12,8 @@ extern "C" {
 #include <interrupts.h>
 }
 
-#include "my_interaction_functions.h"
-#include "consultas.h"   // [Rodrigo] consultas FR11-FR15
+#include "my_interaction_functions.h"   // [Rodrigo] caminho corrigido (o antigo so funcionava num computador)
+#include "consultas.h"                  // [Rodrigo] consultas FR11-FR15
 
 #define mainREGION_1_SIZE   8201
 #define mainREGION_2_SIZE   29905
@@ -86,13 +86,17 @@ void vTaskMenu(void* pvParameters)
     printf("   'o' / 'p' : Alternar Luz superior / Luz inferior \n");
     printf("   'b'       : Ler estado dos botoes esquerdos \n"); //para debug, so ver se funcionam
     printf("   'h'       : Guardar (1) ou Retirar (2) caixa\n");
-    printf("   'l'       : Listar componentes guardados (FR11)\n");   // [Rodrigo]
-    printf("   'f'       : Stock e proximo de uma familia (FR12)\n");   // [Rodrigo]
-    printf("   'v'       : Ver o conteudo de uma celula (FR13)\n");   // [Rodrigo]
+    printf("   'l'       : Listar componentes guardados (FR11)\n");             // [Rodrigo]
+    printf("   'f'       : Stock e proximo de uma familia (FR12)\n");           // [Rodrigo]
+    printf("   'v'       : Ver o conteudo de uma celula (FR13)\n");             // [Rodrigo]
+    printf("   'k'       : Historico de dispensas (FR14)\n");                   // [Rodrigo]
+    printf("   'n'       : Numero de dispensas por familia (FR15)\n");          // [Rodrigo]
+    printf("   Botoes: cliques em cima = guardar ID, em baixo = dispensar familia\n");   // [FR5-FR10]
+    printf("           os dois juntos = STOP; em STOP: cima = RESUME, baixo = RESET\n"); // [FR5-FR10]
 
 
     while (1) {
-        if (_kbhit()) { // faz uma verificação simples no teclado, ve se ha alguma tecla à espera de ser lida, sem parar o programa, true se houver e lê com getch, para nao bloquear o prgrama
+        if (_kbhit()) { // faz uma verificaÃ§Ã£o simples no teclado, ve se ha alguma tecla Ã  espera de ser lida, sem parar o programa, true se houver e lÃª com getch, para nao bloquear o programa
             tecla = _getch();
 
             if (tecla == 'd') {
@@ -132,12 +136,12 @@ void vTaskMenu(void* pvParameters)
                 moveYOutside();
             }
 
-            // calibracao 
+            // calibracao
             else if (tecla == 'c' || tecla == 'C') {
                 calibrarKit();
             }
 
-            // Leitura dos Botões 
+            // Leitura dos BotÃµes
             else if (tecla == 'b' || tecla == 'B') {
                 printf("Botao Superior: ");
                 if (botaoCimaPressionado()) {
@@ -156,7 +160,7 @@ void vTaskMenu(void* pvParameters)
                 }
             }
 
-            // Teste de Luzes 
+            // teste de luzes
             else if (tecla == 'o' || tecla == 'O') {
                 luzCimaEstado = !luzCimaEstado; //mudar de true para false ou contrario
                 AtivarLuzCima(luzCimaEstado);
@@ -271,34 +275,44 @@ void vTaskMenu(void* pvParameters)
                 }
             }
 
-            
             // [Rodrigo] FR11 - lista de componentes guardados
             else if (tecla == 'l' || tecla == 'L') {
                 mostrarComponentesGuardados();
-               }
+            }
 
             // [Rodrigo] FR12 - stock e proximo componente de uma familia
             else if (tecla == 'f' || tecla == 'F') {
-                   int familia = 0;
-                   printf("\nFamilia (1 a 3): ");
-                   std::cin >> familia;
-                   if (familia >= 1 && familia <= 3)
-                       mostrarFamilia(familia);
-                   else
-                       printf("Familia invalida\n");
-                       }
+                int familia = 0;
+                printf("\nFamilia (1 a 3): ");
+                std::cin >> familia;
+                if (familia >= 1 && familia <= 3)
+                    mostrarFamilia(familia);
+                else
+                    printf("Familia invalida\n");
+            }
+
             // [Rodrigo] FR13 - ver o conteudo de uma celula
             else if (tecla == 'v' || tecla == 'V') {
-                           int x = 0, z = 0;
-                           printf("\nColuna X (1 a 3): ");
-                           std::cin >> x;
-                           printf("Linha Z (1 a 3): ");
-                           std::cin >> z;
-                           if (x >= 1 && x <= 3 && z >= 1 && z <= 3)
-                               mostrarCelula(x, z);
-                           else
-                               printf("Celula invalida\n");
-                               }
+                int x = 0, z = 0;
+                printf("\nColuna X (1 a 3): ");
+                std::cin >> x;
+                printf("Linha Z (1 a 3): ");
+                std::cin >> z;
+                if (x >= 1 && x <= 3 && z >= 1 && z <= 3)
+                    mostrarCelula(x, z);
+                else
+                    printf("Celula invalida\n");
+            }
+
+            // [Rodrigo] FR14 - historico de dispensas
+            else if (tecla == 'k' || tecla == 'K') {
+                mostrarHistorico();
+            }
+
+            // [Rodrigo] FR15 - numero de dispensas por familia
+            else if (tecla == 'n' || tecla == 'N') {
+                mostrarContagens();
+            }
 
             // opcao h
             else if (tecla == 'h' || tecla == 'H') {
@@ -344,13 +358,51 @@ void myDaemonTaskStartupHook(void) {
     createDigitalOutput(2);
     writeDigitalU8(2, 0);
 
-    // Cria a tarefa do menu 
+    // Cria a tarefa do menu
     xTaskCreate(vTaskMenu, "Menu", 512, NULL, 1, NULL);
 
     xTaskCreate(vTaskGereBotoes, "Gere Botoes", 512, NULL, 2, NULL);
 
-    // interrupt dos cliques dos botoes
+    // interrupt dos cliques dos botoes esquerdo
     attachInterrupt(1, 5, switch1_rising_isr, RISING);
+
+
+    xTaskCreate(vTaskGereDispensa, "Gere Dispensa (FR4)", 512, NULL, 2, NULL);
+
+    //interrupt dos cliques dos botoes direito
+    attachInterrupt(1, 6, switch2_rising_isr, RISING);
+
+    // eixo X
+    xQueueHandle mbx_X_local = xQueueCreate(10, sizeof(int));
+    xSemaphoreHandle sem_X_local = xSemaphoreCreateCounting(10, 0);
+    TaskGotoXParams* params_x = (TaskGotoXParams*)pvPortMalloc(sizeof(TaskGotoXParams));
+    params_x->mbx_X = mbx_X_local;
+    params_x->sem_X_finished = sem_X_local;
+    xTaskCreate(goto_X_task, "GOTO X Task", 100, params_x, 1, NULL);
+
+    // eixo Z
+    xQueueHandle mbx_Z_local = xQueueCreate(10, sizeof(int));
+    xSemaphoreHandle sem_Z_local = xSemaphoreCreateCounting(10, 0);
+    TaskGotoZParams* params_z = (TaskGotoZParams*)pvPortMalloc(sizeof(TaskGotoZParams));
+    params_z->mbx_Z = mbx_Z_local;
+    params_z->sem_Z_finished = sem_Z_local;
+    xTaskCreate(goto_Z_task, "GOTO Z Task", 100, params_z, 1, NULL);
+
+    // coordenador XZ
+    xQueueHandle mbx_XZ_local = xQueueCreate(10, sizeof(CoordenadasXZ));
+    xSemaphoreHandle sem_XZ_local = xSemaphoreCreateCounting(10, 0);
+    TaskGotoXZParams* params_xz = (TaskGotoXZParams*)pvPortMalloc(sizeof(TaskGotoXZParams));
+    params_xz->mbx_XZ = mbx_XZ_local;
+    params_xz->params_X = params_x;
+    params_xz->params_Z = params_z;
+    params_xz->sem_XZ_finished = sem_XZ_local;
+    xTaskCreate(goto_XZ_task, "GOTO XZ Task", 100, params_xz, 1, &taskSenderCoord);
+
+    setGotoXZHandles(mbx_XZ_local, sem_XZ_local);
+
+    //tarefas de emergencia
+    xTaskCreate(vTaskEmergency, "vTaskEmergency", 100, NULL, 3, &emergencyTask);
+    xTaskCreate(vTaskResume, "vTaskResume", 100, NULL, 3, &resumeTask);
 }
 
 
