@@ -1018,6 +1018,7 @@ void vTaskGereDispensa(void* pvParameters) {
 
 
 void vTaskLimites(void* pvParameters) {
+    
     for (;;) {
         uInt8 p0 = readDigitalU8(0);
         uInt8 p1 = readDigitalU8(1);
