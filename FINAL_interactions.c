@@ -1023,7 +1023,6 @@ void vTaskLimites(void* pvParameters) {
         uInt8 p1 = readDigitalU8(1);
         uInt8 p2 = readDigitalU8(2);
 
-        // direita (P2.7) com X=3 (P0.0)
         if (getBitValue(p2, 6) && !getBitValue(p0, 2)) // esquerda (P2.6) com X=1 (P0.2 ativo a 0)
             stopX(); 
         if (getBitValue(p2, 7) && !getBitValue(p0, 0)) // direita (P2.7) com X=3 (P0.0)
