@@ -28,9 +28,9 @@ xTaskHandle taskSenderCoord = NULL; // handle de xz
 static volatile int global_piscar_mode = 0; // 0 = desligado, 1 = cima , 2 = baixo
 static volatile bool em_emergencia = false;
 
-// estados para o STOP, RESUME e RESET
+// estados para o stop, resume e reset
 static volatile bool cancelar_operacao = false;  // os movimentos em curso desistem - reset
-static volatile int  operacoes_em_curso = 0;     // arrumacoes ou dispensas a decorrer
+static volatile int  operacoes_em_curso = 0;     // arrumacoes ou dispensas a acontecer
 static volatile bool peca_na_cage = false;       // ha uma caixa dentro da cage
 static volatile int  id_na_cage = 0;             // id da caixa
 
@@ -108,12 +108,12 @@ static void fazerReset() {
     printf("\nA efetuar RESET do sistema\n");
 
     cancelar_operacao = true;
-    em_emergencia = false;          // desbloqueia as tarefas para verem o cancelamento
+    em_emergencia = false;          // desbloqueia as tarefas 
     stopX();
     stopY();
     stopZ();
 
-    if (filaPedidos != NULL)   // recomecar do inicio apos um reset
+    if (filaPedidos != NULL)   // recomecar do inicio depois de um reset
         xQueueReset(filaPedidos);
 
     contador_impulsos = 0;
@@ -123,9 +123,9 @@ static void fazerReset() {
     while (operacoes_em_curso > 0)
         vTaskDelay(10);
     
-    vTaskDelay(200);                // margem para os movimentos do menu tambem terminarem
+    vTaskDelay(200);                // margem para os movimentos do menu tambem acabarem
 
-    cancelar_operacao = false;      // a partir daqui os motores podem voltar a andar
+    cancelar_operacao = false;      // agr os "motores" podem voltar a funcionar
     global_piscar_mode = 0;
     resetLuzes();
 
@@ -142,7 +142,7 @@ static void fazerReset() {
 
 
 // a tarefa fica a piscar as luzes enquanto houver emergencia
-// sai sozinha do ciclo quando ha RESUME, em_emergencia e limpado
+// sai sozinha do ciclo quando ha resume, em_emergencia e limpado
 void vTaskEmergency(void* pvParameters) {
 
     for (;;) {
@@ -155,7 +155,7 @@ void vTaskEmergency(void* pvParameters) {
         resetLuzes();
 
         // o botao de baixo pode ainda estar premido quando foi usado no stop
-        // so conta como RESET quando for largado e voltar a ser premido
+        // so conta como reset quando for largado e voltar a ser premido
         bool baixo_antes = true;
 
         // quando as luzes tem que estar a piscar mais rapido
@@ -176,7 +176,7 @@ void vTaskEmergency(void* pvParameters) {
     }
 }
 
-// basta limpar a emergencia, as tarefas que estavam paradas dentro de verificarSegurancaEAtualizarLuzes() continuam exatamente onde estavam
+// basta limpar a emergencia, as tarefas que estavam paradas dentro de verificarSegurancaEAtualizarLuzes() continuam no mm sitio
 void vTaskResume(void* pvParameters) {
 
     for (;;) {
@@ -197,7 +197,7 @@ bool verificarSegurancaEAtualizarLuzes() {
         vTaskDelay(50);
     }
 
-    if (cancelar_operacao) {  // reset - para os motores e devolve false, para desistir
+    if (cancelar_operacao) {  // reset - para os "motores" e devolve false, para desistir
         stopX();
         stopY();
         stopZ();
@@ -282,7 +282,7 @@ void gotoX(int x) {
         stopX();
 
         if (cancelar_operacao) return;
-        x_pos = getXPos(); // atualiza a posição
+        x_pos = getXPos(); // pa atualizar a posição
     }
 
     if (x_pos < x) {
@@ -365,7 +365,7 @@ void gotoY(int y) {
         stopY();
 
         if (cancelar_operacao) return;
-        y_pos = getYPos(); // atualiza a posição
+        y_pos = getYPos(); // pa atualizar a posição
     }
 
     if (y_pos < y) {
@@ -456,7 +456,7 @@ void gotoZ(int z) {
         stopZ();
 
         if (cancelar_operacao) return;
-        z_pos = getZPos(); // atualiza a posição
+        z_pos = getZPos(); // pa atualizar a posição
     }
 
     if (z_pos < z) {
@@ -492,7 +492,7 @@ int getZPosicaoCell()
     return(-1);
 }
 
-//no caso de Y nao ser 2, pousar só para o sensor de baixo, ja que metemos o andar no X e no Z so quando Y = 2
+//ja que metemos o andar no X e no Z so quando Y = 2, temos q fazer uma funcao no caso de nao ser, para ir po sensor de baixo
 static void descerParaSensorBaixo() {
     while (getZPos() == -1) {
         if (!verificarSegurancaEAtualizarLuzes()) break;   // nao esquecer do reset
@@ -548,7 +548,7 @@ void takePartFromCell(int x, int z)
     gotoY(3);      // entra na celula
     if (cancelar_operacao) return;
 
-    // levanta a caixa da prateleira
+    // levanta a caixa daquela "prateleira"
     while (getZPosicaoCell() == -1) {
         if (!verificarSegurancaEAtualizarLuzes()) break;
         moveZUp();
@@ -638,7 +638,7 @@ static bool sistemaEmMovimento() {
 
 // os dois botaos premidos
 static void pedirStop() {
-    // os cliques usados para fazer o STOP nao podem contar como pedidos
+    // os cliques usados para fazer o stop nao podem contar como pedidos
     contador_impulsos = 0;
     contador_impulsos_baixo = 0;
 
@@ -665,7 +665,7 @@ void switch1_rising_isr(ULONGLONG lastTime) {
 
     else if (em_emergencia) {
         if (resumeTask != NULL) {
-            xTaskResumeFromISR(resumeTask);        // de stop para resume
+            xTaskResumeFromISR(resumeTask);        // de stop pa resume
         }
     }
 
@@ -680,7 +680,7 @@ void switch1_rising_isr(ULONGLONG lastTime) {
 // cliques botao inferior
 void switch2_rising_isr(ULONGLONG lastTime) {
 
-    // em STOP o botao de baixo faz RESET, lido pela vTaskEmergency 
+    // em stop o botao de baixo faz reset, lido pela vTaskEmergency 
     if (em_emergencia) {
         return;
     }
@@ -711,7 +711,7 @@ bool enviarPedido(TipoPedido tipo, int valor) {
         return false;
     }
     if (tipo == PEDIDO_DISPENSAR && (valor < 1 || valor > 3)) {
-        printf(" Familia %d fora do intervalo (1 a 3), pedido foi rejeitado\n", valor);
+        printf("Familia %d fora do intervalo (1 a 3), pedido foi rejeitado\n", valor);
         return false;
     }
 
@@ -724,8 +724,7 @@ bool enviarPedido(TipoPedido tipo, int valor) {
 
     // a mensagem tem q ser escrita antes de enviar pq vTaskExecutaPedidos tem mais prioridade, baralhava aquilo
     int a_frente = (int)uxQueueMessagesWaiting(filaPedidos) + (operacoes_em_curso > 0 ? 1 : 0);
-    printf("Pedido recebido: %s %d (pedidos a frente: %d)\n",
-        tipo == PEDIDO_ARRUMAR ? "arrumar ID" : "dispensar familia", valor, a_frente);
+    printf("Pedido recebido: %s %d (pedidos a frente: %d)\n", tipo == PEDIDO_ARRUMAR ? "arrumar ID" : "dispensar familia", valor, a_frente);
 
     if (xQueueSend(filaPedidos, &p, 0) != pdTRUE) {
         printf("Fila de pedidos cheia, pedido foi rejeitado\n");
@@ -736,8 +735,7 @@ bool enviarPedido(TipoPedido tipo, int valor) {
 
 // usado pelo menu para so aceitar comandos manuais nesse caso, NF1 e NF3
 bool sistemaLivre() {
-    return operacoes_em_curso == 0 && !em_emergencia &&
-        (filaPedidos == NULL || uxQueueMessagesWaiting(filaPedidos) == 0);
+    return operacoes_em_curso == 0 && !em_emergencia && (filaPedidos == NULL || uxQueueMessagesWaiting(filaPedidos) == 0);
 }
 
 
@@ -753,7 +751,7 @@ static void escreverDataAgora(char* texto, size_t tamanho) {
 static void esperarRetiradaDaCage() {
 
     if (caixa_entregue_na_cage && caixaNaCage()) {
-        printf("Retire da cage a caixa entregue\n");
+        printf("Retire da cage a caixa que foi entregue\n");
 
         while (caixaNaCage()) {
             if (!verificarSegurancaEAtualizarLuzes()) return;   // reset
@@ -764,13 +762,13 @@ static void esperarRetiradaDaCage() {
 }
 
 
-static void executarArrumacao(int id_peca)
-{
+static void executarArrumacao(int id_peca){
+    
     int familia = ((id_peca - 1) % 3) + 1;   // Familia 1 (1,4,7), familia 2 (2,5,8), familia 3 (3,6,9)
 
     printf("\nA executar pedido, a arrumar componente %d (familia %d)\n", id_peca, familia);
 
-    // rejeitar um id que ja esteja guardado
+    // recusar id que ja esteja guardado
     for (int x = 1; x <= 3; x++) {
         for (int z = 1; z <= 3; z++) {
             if (armazem[x][z].ocupado && armazem[x][z].id == id_peca) {
@@ -780,7 +778,7 @@ static void executarArrumacao(int id_peca)
         }
     }
 
-    // procurar a primeira celula vazia no armazem
+    // procurar a primeira celula vazia
     int target_x = -1;
     int target_z = -1;
     bool celula_encontrada = false;
@@ -828,7 +826,7 @@ static void executarArrumacao(int id_peca)
         peca_na_cage = true;   
         id_na_cage = id_peca;
         arrumacao_iniciada = true;
-        putPartInCell(target_x, target_z);   // poe peca_na_cage = false quando o pousa
+        putPartInCell(target_x, target_z);   // poe peca_na_cage = false quando o mete
     }
 
     global_piscar_mode = 0;
@@ -839,7 +837,7 @@ static void executarArrumacao(int id_peca)
         printf("Arrumacao do componente %d interrompida.\n", id_peca);
     }
     else {
-        // registar o tempo de conclusao
+        //tempo de conclusao
         ULONGLONG tempo_conclusao = GetTickCount64();
 
         // atualizar o armazem
@@ -874,7 +872,7 @@ static void executarDispensa(int familia_pretendida){
                 existe = true;
 
     if (!existe) {
-        printf("Familia %d out of stock. Nao existem pecas disponiveis. Cage nao se moveu\n", familia_pretendida);
+        printf("Familia %d sem stock. Nao existem pecas disponiveis. Cage nao se moveu\n", familia_pretendida);
         return;
     }
 
@@ -930,11 +928,11 @@ static void executarDispensa(int familia_pretendida){
     takePartFromCell(target_x, target_z);
 
     if (!peca_na_cage) {
-        // reset antes de levantar: a caixa continua na celula
+        // reset antes de levantar, a caixa vai continuar na celula
         printf("Dispensa interrompida: a caixa %d continua na celula.\n", id_peca);
     }
     else {
-        // a caixa saiu da celula
+        // a caixa saiu de la
         armazem[target_x][target_z].ocupado = false;
 
         
@@ -945,7 +943,7 @@ static void executarDispensa(int familia_pretendida){
         }
         else {
             peca_na_cage = false;                 // entregue
-            caixa_entregue_na_cage = true;   //o proximo pedido espera que o retirem
+            caixa_entregue_na_cage = true;   //o proximo pedido vai esperar que o tirem
 
             ULONGLONG duracao = GetTickCount64() - tempo_armazenamento;
 
@@ -984,7 +982,7 @@ void vTaskExecutaPedidos(void* pvParameters) {
 void vTaskGereBotoes(void* pvParameters) {
 
     while (1) {
-        // Se houve impulsos e ja passaram pelo menos 2 segundos desde o ultimo clique
+        // Se houve cliques e ja passaram pelo menos 2 segundos desde o ultimo 
         if (contador_impulsos > 0 && (GetTickCount64() - ultimo_tempo_clique) > 2000) {
 
             int id_peca = contador_impulsos;
