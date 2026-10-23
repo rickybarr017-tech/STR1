@@ -306,7 +306,7 @@ void vTaskMenu(void* pvParameters)
                 mostrarContagens();
             }
 
-            // opcao h - so para testes, nao atualiza o inventario 
+            // opcao h - so para testes, nao atualiza o inventario, nem ativa luzes 
             else if (tecla == 'h' || tecla == 'H') {
 
                 if (!estaCalibrado()) {
