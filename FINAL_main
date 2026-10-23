@@ -111,6 +111,8 @@ void vTaskMenu(void* pvParameters)
     printf("   'v'        : Ver o conteudo de uma celula \n");             // (FR13)
     printf("   'k'        : Historico de dispensas \n");                   // (FR14)
     printf("   'n'        : Numero de dispensas por familia \n");          // (FR15)
+    printf("   'g'        : Pedido: guardar componente (ID 1-9)\n");       //funcionam como o switch manualmente e facilita ver NF1
+    printf("   't'        : Pedido: dispensar familia (1-3)\n");
     printf("   Botoes     : cliques em cima = guardar id, em baixo = dispensar familia\n");   
     printf("               os dois juntos = STOP; em STOP: cima = RESUME, baixo = RESET\n"); 
     printf("   Os comandos manuais so funcionam com o sistema parado.\n");
