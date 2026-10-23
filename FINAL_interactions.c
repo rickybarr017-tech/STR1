@@ -68,7 +68,7 @@ void pedirMovimentoXZ(int x, int z) {
         CoordenadasXZ coords = { x, z };
         xQueueSend(global_mbx_XZ, &coords, portMAX_DELAY);
 
-        // espera sempre pelo fim do movimento (no caso de haver resume). Com RESET os eixos desistem
+        // espera sempre pelo fim do movimento (no caso de haver resume). Com reset os eixos desistem
         // logo, por isso a espera e curta e nao ficam semaforos "atrasados" que
         // fariam o movimento seguinte terminar antes do tempo.
         while (xSemaphoreTake(global_sem_XZ_finished, (TickType_t)10) != pdTRUE) {
@@ -503,7 +503,6 @@ static void descerParaSensorBaixo() {
 }
 
 
-// garantir se as luzes tem q estar a piscar quando usamos o botao h -----------------------------------------------
 void putPartInCell(int x, int z)
 {
     if (!estaCalibrado()) {
