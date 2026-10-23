@@ -44,7 +44,7 @@ volatile ULONGLONG ultimo_tempo_clique = 0;
 volatile int contador_impulsos_baixo = 0;
 volatile ULONGLONG ultimo_tempo_clique_baixo = 0;
 
-// contam quantas arrumacoes ou dispensas estao a decorrer -------------------------------- ver o pq do task
+// contam quantas arrumacoes ou dispensas estao a decorrer, ja n e preciso mas deixado por precaucao
 static void iniciarOperacao() {
     taskENTER_CRITICAL();
     operacoes_em_curso++;
