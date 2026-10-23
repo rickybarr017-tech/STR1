@@ -693,7 +693,7 @@ void switch2_rising_isr(ULONGLONG lastTime) {
     else {
         ultimo_tempo_clique_baixo = GetTickCount64();
         contador_impulsos_baixo++;
-        printf("\nTotal de cliques: %d\n", contador_impulsos_baixo);
+        printf("\nTotal de cliques: %d", contador_impulsos_baixo);
     }
 }
 
