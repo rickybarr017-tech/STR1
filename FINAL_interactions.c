@@ -806,7 +806,7 @@ static void executarArrumacao(int id_peca){
 
     esperarRetiradaDaCage();   
 
-    // o componente entra pela cage no default
+    // a caixa entra pela cage, depois de ir no default
     if (!cancelar_operacao)
         pedirMovimentoXZ(1, 1);
 
@@ -934,7 +934,7 @@ static void executarDispensa(int familia_pretendida){
         // a caixa saiu de la
         armazem[target_x][target_z].ocupado = false;
 
-        
+        //garantir q esta no default
         pedirMovimentoXZ(1, 1);
 
         if (cancelar_operacao) {
