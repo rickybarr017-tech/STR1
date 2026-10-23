@@ -806,10 +806,6 @@ static void executarArrumacao(int id_peca){
 
     esperarRetiradaDaCage();   
 
-    // a caixa entra pela cage, depois de ir no default
-    if (!cancelar_operacao)
-        pedirMovimentoXZ(1, 1);
-
     if (!cancelar_operacao && !caixaNaCage()) {
         printf("Coloque a caixa %d na cage\n", id_peca);
 
@@ -933,9 +929,6 @@ static void executarDispensa(int familia_pretendida){
     else {
         // a caixa saiu de la
         armazem[target_x][target_z].ocupado = false;
-
-        //garantir q esta no default
-        pedirMovimentoXZ(1, 1);
 
         if (cancelar_operacao) {
             printf("Dispensa interrompida: a caixa %d esta na cage\n", id_peca);
